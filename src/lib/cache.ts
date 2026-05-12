@@ -76,6 +76,6 @@ export function analysisListRecent(limit = 10): RecentAnalysis[] {
   })
 }
 
-export function analysisDelete(id: string): void {
-  getDb().prepare('DELETE FROM analyses WHERE id = ?').run(id)
+export function analysisDelete(id: string): number {
+  return getDb().prepare('DELETE FROM analyses WHERE id = ?').run(id).changes
 }
