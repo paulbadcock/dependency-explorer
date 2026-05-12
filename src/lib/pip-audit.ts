@@ -1,4 +1,4 @@
-import { writeFileSync, unlinkSync, mkdtempSync } from 'fs'
+import { writeFileSync, unlinkSync, mkdtempSync, rmdirSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
 import { execFileNoThrow } from '../utils/execFileNoThrow'
@@ -14,9 +14,9 @@ export class PipAuditNotFoundError extends Error {
 export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDependency[]> {
   const dir = mkdtempSync(join(tmpdir(), 'dep-explorer-'))
   const filePath = join(dir, 'requirements.txt')
-  writeFileSync(filePath, requirementsTxt, 'utf8')
 
   try {
+    writeFileSync(filePath, requirementsTxt, 'utf8')
     const result = await execFileNoThrow('pip-audit', ['--json', '-r', filePath])
 
     if (result.notFound) throw new PipAuditNotFoundError()
@@ -29,6 +29,6 @@ export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDepe
     return parsed.dependencies
   } finally {
     try { unlinkSync(filePath) } catch { /* best-effort cleanup */ }
-    try { unlinkSync(dir) } catch { /* best-effort cleanup */ }
+    try { rmdirSync(dir) } catch { /* best-effort cleanup */ }
   }
 }
