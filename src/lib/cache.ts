@@ -51,10 +51,10 @@ export function pkgCacheSet(key: string, data: unknown, ttlMs: number): void {
     .run(key, JSON.stringify(data), Date.now() + ttlMs)
 }
 
-export function analysisSave(analysis: Analysis, filename: string): void {
+export function analysisSave(analysis: Analysis): void {
   getDb()
     .prepare('INSERT OR REPLACE INTO analyses (id, filename, data, created_at) VALUES (?, ?, ?, ?)')
-    .run(analysis.id, filename, JSON.stringify(analysis), Date.now())
+    .run(analysis.id, analysis.filename, JSON.stringify(analysis), Date.now())
 }
 
 export function analysisGet(id: string): Analysis | null {

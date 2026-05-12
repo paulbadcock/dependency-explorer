@@ -35,7 +35,7 @@ export async function runAnalysis(filename: string, content: string): Promise<An
     .map(dep => buildPackage(dep, pipMap, pypiInfoMap))
 
   const analysis: Analysis = { id, filename, createdAt: new Date().toISOString(), packages }
-  analysisSave(analysis, filename)
+  analysisSave(analysis)
   return analysis
 }
 
@@ -87,7 +87,7 @@ function buildPackage(
 function mapCves(dep: PipAuditDependency): CVE[] {
   return dep.vulns.map(v => ({
     id: v.aliases.find(a => a.startsWith('CVE-')) ?? v.id,
-    severity: 'high' as const,
+    severity: 'unknown' as const,
     description: v.description,
     fixedInVersion: v.fix_versions[0] ?? null,
   }))
