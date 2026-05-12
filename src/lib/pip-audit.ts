@@ -17,7 +17,7 @@ export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDepe
 
   try {
     writeFileSync(filePath, requirementsTxt, 'utf8')
-    const result = await execFileNoThrow('pip-audit', ['--json', '-r', filePath])
+    const result = await execFileNoThrow('pip-audit', ['-f', 'json', '-r', filePath])
 
     if (result.notFound) throw new PipAuditNotFoundError()
 
