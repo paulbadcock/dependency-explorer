@@ -7,16 +7,26 @@ import type { PipAuditDependency, PipAuditOutput } from './types'
 function extractPipError(stderr: string): string {
   if (!stderr.trim()) return 'pip-audit produced no output'
   const lines = stderr.split('\n')
-  // Prefer bare pip ERROR lines (no module path) — these are user-facing
   const pipErrors = lines.filter(l => /^ERROR: (?!pip_audit\.)/.test(l))
   if (pipErrors.length > 0) return pipErrors.join('\n')
-  // Fall back to last 3 non-empty lines
   const nonEmpty = lines.filter(l => l.trim())
   return nonEmpty.slice(-3).join('\n')
 }
 
 function isResolutionFailure(stderr: string): boolean {
   return stderr.includes('ResolutionImpossible') || stderr.includes('ResolutionTooDeep')
+}
+
+// psycopg[binary] → psycopg: removes extras so pip doesn't pull in conflicting binary wheels
+function stripExtras(txt: string): string {
+  return txt
+    .split('\n')
+    .map(line => {
+      const t = line.trim()
+      if (!t || t.startsWith('#') || t.startsWith('-')) return line
+      return line.replace(/\[[^\]]*\]/g, '')
+    })
+    .join('\n')
 }
 
 export class PipAuditNotFoundError extends Error {
@@ -34,7 +44,7 @@ async function audit(filePath: string, noDeps: boolean): Promise<PipAuditDepende
   if (result.notFound) throw new PipAuditNotFoundError()
 
   if (!result.stdout.trim()) {
-    if (!noDeps && isResolutionFailure(result.stderr)) return null  // signal: retry
+    if (isResolutionFailure(result.stderr)) return null  // signal: try next strategy
     throw new Error(extractPipError(result.stderr))
   }
 
@@ -47,13 +57,21 @@ export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDepe
   const filePath = join(dir, 'requirements.txt')
 
   try {
+    // Strategy 1: full resolution with extras
     writeFileSync(filePath, requirementsTxt, 'utf8')
-
     const full = await audit(filePath, false)
     if (full !== null) return full
 
-    // Dependency resolution conflict — fall back to auditing direct deps only
-    return await audit(filePath, true) ?? []
+    // Strategy 2: strip extras (removes [binary], [c], etc. that pull in conflicting wheels)
+    writeFileSync(filePath, stripExtras(requirementsTxt), 'utf8')
+    const noExtras = await audit(filePath, false)
+    if (noExtras !== null) return noExtras
+
+    // Strategy 3: no-deps (audits packages as listed, no transitive resolution)
+    const noDepsResult = await audit(filePath, true)
+    if (noDepsResult !== null) return noDepsResult
+
+    return []
   } finally {
     try { unlinkSync(filePath) } catch { /* best-effort cleanup */ }
     try { rmdirSync(dir) } catch { /* best-effort cleanup */ }

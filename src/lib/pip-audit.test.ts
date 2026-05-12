@@ -44,20 +44,34 @@ describe('runPipAudit', () => {
     await expect(runPipAudit('nonexistent-pkg==999\n')).rejects.toThrow('could not find a version')
   })
 
-  it('falls back to --no-deps when resolution is impossible', async () => {
+  it('retries without extras when full resolution fails', async () => {
+    const STRIPPED_JSON = JSON.stringify({
+      dependencies: [{ name: 'psycopg', version: '3.1.0', vulns: [] }],
+    })
+    vi.mocked(execFileNoThrow)
+      // strategy 1: full resolution fails
+      .mockResolvedValueOnce({ stdout: '', stderr: 'ERROR: ResolutionImpossible', status: 1, notFound: false })
+      // strategy 2: extras stripped — succeeds
+      .mockResolvedValueOnce({ stdout: STRIPPED_JSON, stderr: '', status: 0, notFound: false })
+    const deps = await runPipAudit('psycopg[binary]\n')
+    expect(deps).toHaveLength(1)
+    expect(deps[0]!.name).toBe('psycopg')
+  })
+
+  it('falls back to --no-deps when both full resolution and extras-stripped fail', async () => {
     const NO_DEPS_JSON = JSON.stringify({
       dependencies: [{ name: 'psycopg', version: '3.1.0', vulns: [] }],
     })
     vi.mocked(execFileNoThrow)
-      // first call: full resolution fails
+      // strategy 1: fails
       .mockResolvedValueOnce({ stdout: '', stderr: 'ERROR: ResolutionImpossible', status: 1, notFound: false })
-      // second call: --no-deps succeeds
+      // strategy 2: also fails
+      .mockResolvedValueOnce({ stdout: '', stderr: 'ERROR: ResolutionImpossible', status: 1, notFound: false })
+      // strategy 3: --no-deps succeeds
       .mockResolvedValueOnce({ stdout: NO_DEPS_JSON, stderr: '', status: 0, notFound: false })
     const deps = await runPipAudit('psycopg[binary]\n')
     expect(deps).toHaveLength(1)
-    expect(deps[0]!.name).toBe('psycopg')
-    // second call must include --no-deps
     const calls = vi.mocked(execFileNoThrow).mock.calls
-    expect(calls[1]![1]).toContain('--no-deps')
+    expect(calls[2]![1]).toContain('--no-deps')
   })
 })
