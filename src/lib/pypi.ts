@@ -2,6 +2,7 @@ import { pkgCacheGet, pkgCacheSet } from './cache'
 import type { PyPIPackageInfo, PyPIRelease } from './types'
 
 const PKG_CACHE_TTL = 24 * 60 * 60 * 1000
+const PEP440_PRE_RE = /(a|b|rc)\d+$/
 
 export async function fetchPackageInfo(name: string, installedVersion: string): Promise<PyPIPackageInfo> {
   const cacheKey = `pypi:${name.toLowerCase()}@${installedVersion}`
@@ -10,7 +11,8 @@ export async function fetchPackageInfo(name: string, installedVersion: string): 
 
   const [latestData, versionData] = await Promise.all([
     fetchJson(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`),
-    fetchJson(`https://pypi.org/pypi/${encodeURIComponent(name)}/${encodeURIComponent(installedVersion)}/json`),
+    fetchJson(`https://pypi.org/pypi/${encodeURIComponent(name)}/${encodeURIComponent(installedVersion)}/json`)
+      .catch(() => null),
   ])
 
   const releases = buildReleaseList(
@@ -20,7 +22,7 @@ export async function fetchPackageInfo(name: string, installedVersion: string): 
   const info: PyPIPackageInfo = {
     latestVersion: (latestData as any).info.version as string,
     releases,
-    requiresDist: ((versionData as any).info.requires_dist as string[] | null) ?? [],
+    requiresDist: ((versionData as any)?.info?.requires_dist as string[] | null) ?? [],
     lastReleaseDate: releases.at(-1)?.uploadTime ?? new Date().toISOString(),
   }
 
@@ -52,7 +54,7 @@ function buildReleaseList(
   return Object.entries(rawReleases)
     .filter(([version, files]) =>
       files.length > 0 &&
-      !version.includes('a') && !version.includes('b') && !version.includes('rc')
+      !PEP440_PRE_RE.test(version)
     )
     .map(([version, files]) => ({ version, uploadTime: files[0]!.upload_time_iso_8601 }))
     .sort((a, b) => new Date(a.uploadTime).getTime() - new Date(b.uploadTime).getTime())
