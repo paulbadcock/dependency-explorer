@@ -17,7 +17,7 @@ export function computeRollup(pkg: Package): Rollup {
   const all = [pkg, ...pkg.dependencies]
   return {
     totalCves: all.reduce((sum, p) => sum + p.cves.length, 0),
-    maxPatchesBehind: Math.max(0, ...all.map(p => p.patchesBehind)),
+    maxPatchesBehind: all.reduce((max, p) => Math.max(max, p.patchesBehind), 0),
     hasMajorBehind: all.some(p => p.majorsBehind >= 1),
     hasEol: all.some(p => getPackageStatus(p) === 'eol'),
   }

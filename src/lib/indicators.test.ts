@@ -82,4 +82,8 @@ describe('computeRollup', () => {
     const child = makePackage({ lastReleaseDate: old.toISOString() })
     expect(computeRollup(makePackage({ dependencies: [child] })).hasEol).toBe(true)
   })
+
+  it('returns zero maxPatchesBehind for a package with no dependencies', () => {
+    expect(computeRollup(makePackage()).maxPatchesBehind).toBe(0)
+  })
 })
