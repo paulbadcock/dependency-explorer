@@ -15,11 +15,31 @@ function extractPipError(stderr: string): string {
   return nonEmpty.slice(-3).join('\n')
 }
 
+function isResolutionFailure(stderr: string): boolean {
+  return stderr.includes('ResolutionImpossible') || stderr.includes('ResolutionTooDeep')
+}
+
 export class PipAuditNotFoundError extends Error {
   constructor() {
     super('pip-audit not found. Install it with: pip install pip-audit')
     this.name = 'PipAuditNotFoundError'
   }
+}
+
+async function audit(filePath: string, noDeps: boolean): Promise<PipAuditDependency[] | null> {
+  const args = ['-f', 'json', '-r', filePath]
+  if (noDeps) args.push('--no-deps')
+  const result = await execFileNoThrow('pip-audit', args)
+
+  if (result.notFound) throw new PipAuditNotFoundError()
+
+  if (!result.stdout.trim()) {
+    if (!noDeps && isResolutionFailure(result.stderr)) return null  // signal: retry
+    throw new Error(extractPipError(result.stderr))
+  }
+
+  const parsed = JSON.parse(result.stdout) as PipAuditOutput
+  return parsed.dependencies
 }
 
 export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDependency[]> {
@@ -28,16 +48,12 @@ export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDepe
 
   try {
     writeFileSync(filePath, requirementsTxt, 'utf8')
-    const result = await execFileNoThrow('pip-audit', ['-f', 'json', '-r', filePath])
 
-    if (result.notFound) throw new PipAuditNotFoundError()
+    const full = await audit(filePath, false)
+    if (full !== null) return full
 
-    if (!result.stdout.trim()) {
-      throw new Error(extractPipError(result.stderr))
-    }
-
-    const parsed = JSON.parse(result.stdout) as PipAuditOutput
-    return parsed.dependencies
+    // Dependency resolution conflict — fall back to auditing direct deps only
+    return await audit(filePath, true) ?? []
   } finally {
     try { unlinkSync(filePath) } catch { /* best-effort cleanup */ }
     try { rmdirSync(dir) } catch { /* best-effort cleanup */ }
