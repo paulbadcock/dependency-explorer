@@ -1,0 +1,62 @@
+---
+import { SplitPanel } from '../../components/SplitPanel'
+import { analysisGet } from '../../lib/analysis'
+import type { Analysis } from '../../lib/types'
+
+const { id } = Astro.params
+const analysis: Analysis | null = id ? analysisGet(id) : null
+if (!analysis) return Astro.redirect('/', 302)
+
+const totalCves    = analysis.packages.reduce((s, p) => s + p.rollup.totalCves, 0)
+const majorsCount  = analysis.packages.filter(p => p.rollup.hasMajorBehind).length
+const eolCount     = analysis.packages.filter(p => p.rollup.hasEol).length
+const upToDate     = analysis.packages.filter(
+  p => p.rollup.totalCves === 0 && p.rollup.maxPatchesBehind === 0 && !p.rollup.hasEol
+).length
+---
+
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{analysis.filename} — Dependency Explorer</title>
+  </head>
+  <body class="min-h-screen bg-surface text-white flex flex-col" style="height:100vh">
+
+    <header class="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
+      <a href="/" class="text-muted text-sm hover:text-white transition-colors">← Upload</a>
+      <span class="font-mono text-sm text-muted">{analysis.filename}</span>
+      <span class="text-muted text-xs">{new Date(analysis.createdAt).toLocaleDateString()}</span>
+    </header>
+
+    <div class="grid grid-cols-4 border-b border-border flex-shrink-0">
+      <div class="px-4 py-2 text-center border-r border-border">
+        <div class:list={['font-bold text-lg', totalCves > 0 ? 'text-red-text' : 'text-green-text']}>
+          {totalCves}
+        </div>
+        <div class="text-muted text-xs uppercase tracking-widest">CVEs</div>
+      </div>
+      <div class="px-4 py-2 text-center border-r border-border">
+        <div class:list={['font-bold text-lg', majorsCount > 0 ? 'text-purple-text' : 'text-muted']}>
+          {majorsCount}
+        </div>
+        <div class="text-muted text-xs uppercase tracking-widest">Major behind</div>
+      </div>
+      <div class="px-4 py-2 text-center border-r border-border">
+        <div class:list={['font-bold text-lg', eolCount > 0 ? 'text-muted' : 'text-green-text']}>
+          {eolCount}
+        </div>
+        <div class="text-muted text-xs uppercase tracking-widest">EOL</div>
+      </div>
+      <div class="px-4 py-2 text-center">
+        <div class="font-bold text-lg text-green-text">{upToDate}/{analysis.packages.length}</div>
+        <div class="text-muted text-xs uppercase tracking-widest">Up to date</div>
+      </div>
+    </div>
+
+    <div class="flex flex-1 overflow-hidden">
+      <SplitPanel packages={analysis.packages} client:load />
+    </div>
+
+  </body>
+</html>
