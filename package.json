@@ -6,8 +6,7 @@
     "build": "astro build",
     "preview": "node ./dist/server/entry.mjs",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "test:utils": "vitest run --config vitest.config.utils.ts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@astrojs/node": "^9.0.0",
