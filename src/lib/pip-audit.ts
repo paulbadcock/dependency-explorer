@@ -4,6 +4,17 @@ import { tmpdir } from 'os'
 import { execFileNoThrow } from '../utils/execFileNoThrow'
 import type { PipAuditDependency, PipAuditOutput } from './types'
 
+function extractPipError(stderr: string): string {
+  if (!stderr.trim()) return 'pip-audit produced no output'
+  const lines = stderr.split('\n')
+  // Prefer bare pip ERROR lines (no module path) — these are user-facing
+  const pipErrors = lines.filter(l => /^ERROR: (?!pip_audit\.)/.test(l))
+  if (pipErrors.length > 0) return pipErrors.join('\n')
+  // Fall back to last 3 non-empty lines
+  const nonEmpty = lines.filter(l => l.trim())
+  return nonEmpty.slice(-3).join('\n')
+}
+
 export class PipAuditNotFoundError extends Error {
   constructor() {
     super('pip-audit not found. Install it with: pip install pip-audit')
@@ -22,7 +33,7 @@ export async function runPipAudit(requirementsTxt: string): Promise<PipAuditDepe
     if (result.notFound) throw new PipAuditNotFoundError()
 
     if (!result.stdout.trim()) {
-      throw new Error(result.stderr.trim() || 'pip-audit produced no output')
+      throw new Error(extractPipError(result.stderr))
     }
 
     const parsed = JSON.parse(result.stdout) as PipAuditOutput
