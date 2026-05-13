@@ -1,62 +1,80 @@
 ---
 import { SplitPanel } from '../../components/SplitPanel'
 import { analysisGet } from '../../lib/analysis'
-import type { Analysis } from '../../lib/types'
+import { analysisListRecent } from '../../lib/cache'
 
 const { id } = Astro.params
-const analysis: Analysis | null = id ? analysisGet(id) : null
+const analysis = id ? await analysisGet(id) : null
 if (!analysis) return Astro.redirect('/', 302)
 
-const totalCves    = analysis.packages.reduce((s, p) => s + p.rollup.totalCves, 0)
-const majorsCount  = analysis.packages.filter(p => p.rollup.hasMajorBehind).length
-const eolCount     = analysis.packages.filter(p => p.rollup.hasEol).length
-const upToDate     = analysis.packages.filter(
-  p => p.rollup.totalCves === 0 && p.rollup.maxPatchesBehind === 0 && !p.rollup.hasEol
-).length
+const others = (await analysisListRecent(20)).filter(r => r.id !== id)
+const ecosystem = analysis.filename === 'packages.lock.json' ? 'nuget' : 'pypi'
 ---
 
 <html lang="en" class="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{analysis.filename} — Dependency Explorer</title>
+    <title>{analysis.label ?? analysis.filename} — Dependency Explorer</title>
   </head>
   <body class="min-h-screen bg-surface text-white flex flex-col" style="height:100vh">
 
-    <header class="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
+    <header class="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0 relative">
       <a href="/" class="text-muted text-sm hover:text-white transition-colors">← Upload</a>
-      <span class="font-mono text-sm text-muted">{analysis.filename}</span>
-      <span class="text-muted text-xs">{new Date(analysis.createdAt).toLocaleDateString()}</span>
+      <div class="text-center">
+        <div class="font-mono text-sm">{analysis.label ?? analysis.filename}</div>
+        {analysis.label && (
+          <div class="text-muted text-xs">{analysis.filename}</div>
+        )}
+      </div>
+      <div class="relative">
+        {others.length > 0 ? (
+          <>
+            <button
+              id="compare-toggle"
+              class="text-xs text-muted border border-border rounded px-2 py-1 hover:text-white hover:border-muted transition-colors"
+            >
+              Compare ↓
+            </button>
+            <div
+              id="compare-menu"
+              class="hidden absolute right-0 top-full mt-1 w-64 bg-panel border border-border rounded-lg shadow-lg z-10 overflow-hidden"
+            >
+              {others.map((item, i) => (
+                <a
+                  href={`/compare/${id}/${item.id}`}
+                  class:list={[
+                    'flex items-center justify-between px-3 py-2 hover:bg-surface transition-colors text-xs',
+                    i < others.length - 1 ? 'border-b border-border' : '',
+                  ]}
+                >
+                  <span class="font-mono truncate">{item.label ?? item.filename}</span>
+                  {item.totalCves > 0
+                    ? <span class="text-red-text shrink-0 ml-2">{item.totalCves} CVE</span>
+                    : <span class="text-green-text shrink-0 ml-2">clean</span>
+                  }
+                </a>
+              ))}
+            </div>
+          </>
+        ) : (
+          <span class="text-xs text-muted">{new Date(analysis.createdAt).toLocaleDateString()}</span>
+        )}
+      </div>
     </header>
 
-    <div class="grid grid-cols-4 border-b border-border flex-shrink-0">
-      <div class="px-4 py-2 text-center border-r border-border">
-        <div class:list={['font-bold text-lg', totalCves > 0 ? 'text-red-text' : 'text-green-text']}>
-          {totalCves}
-        </div>
-        <div class="text-muted text-xs uppercase tracking-widest">CVEs</div>
-      </div>
-      <div class="px-4 py-2 text-center border-r border-border">
-        <div class:list={['font-bold text-lg', majorsCount > 0 ? 'text-purple-text' : 'text-muted']}>
-          {majorsCount}
-        </div>
-        <div class="text-muted text-xs uppercase tracking-widest">Major behind</div>
-      </div>
-      <div class="px-4 py-2 text-center border-r border-border">
-        <div class:list={['font-bold text-lg', eolCount > 0 ? 'text-muted' : 'text-green-text']}>
-          {eolCount}
-        </div>
-        <div class="text-muted text-xs uppercase tracking-widest">EOL</div>
-      </div>
-      <div class="px-4 py-2 text-center">
-        <div class="font-bold text-lg text-green-text">{upToDate}/{analysis.packages.length}</div>
-        <div class="text-muted text-xs uppercase tracking-widest">Up to date</div>
-      </div>
-    </div>
-
     <div class="flex flex-1 overflow-hidden">
-      <SplitPanel packages={analysis.packages} client:load />
+      <SplitPanel packages={analysis.packages} ecosystem={ecosystem} client:load />
     </div>
 
+    <script>
+      const toggle = document.getElementById('compare-toggle')
+      const menu = document.getElementById('compare-menu')
+      toggle?.addEventListener('click', e => {
+        e.stopPropagation()
+        menu?.classList.toggle('hidden')
+      })
+      document.addEventListener('click', () => menu?.classList.add('hidden'))
+    </script>
   </body>
 </html>
