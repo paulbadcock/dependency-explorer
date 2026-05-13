@@ -181,7 +181,7 @@ function CveCard({ cve }: { cve: CVE }) {
               rel="noreferrer"
               className="text-muted text-xs hover:text-white transition-colors"
             >
-              NVD ↗
+              NVD <span aria-hidden="true">↗</span>
             </a>
           )}
         </span>

@@ -85,13 +85,15 @@ describe('PackageDetail', () => {
     const link = screen.getByRole('link', { name: /CVE-2023-32681/ })
     expect(link).toHaveAttribute('href', 'https://osv.dev/vulnerability/CVE-2023-32681')
     expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noreferrer')
   })
 
   it('renders an NVD link for CVE- format IDs', () => {
     render(<PackageDetail pkg={MOCK_PKG} ecosystem="pypi" />)
-    const nvdLink = screen.getByRole('link', { name: 'NVD ↗' })
+    const nvdLink = screen.getByRole('link', { name: 'NVD' })
     expect(nvdLink).toHaveAttribute('href', 'https://nvd.nist.gov/vuln/detail/CVE-2023-32681')
     expect(nvdLink).toHaveAttribute('target', '_blank')
+    expect(nvdLink).toHaveAttribute('rel', 'noreferrer')
   })
 
   it('does not render an NVD link for GHSA- format IDs', () => {
@@ -100,7 +102,7 @@ describe('PackageDetail', () => {
       cves: [{ id: 'GHSA-abcd-1234-efgh', severity: 'high', description: 'test vuln', fixedInVersion: null }],
     }
     render(<PackageDetail pkg={ghsaPkg} ecosystem="pypi" />)
-    expect(screen.queryByRole('link', { name: 'NVD ↗' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'NVD' })).not.toBeInTheDocument()
   })
 
   it('renders package name as a PyPI link', () => {
@@ -108,6 +110,7 @@ describe('PackageDetail', () => {
     const link = screen.getByRole('link', { name: /requests/ })
     expect(link).toHaveAttribute('href', 'https://pypi.org/project/requests')
     expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noreferrer')
   })
 
   it('renders package name as a NuGet link', () => {
@@ -115,5 +118,6 @@ describe('PackageDetail', () => {
     const link = screen.getByRole('link', { name: /Newtonsoft\.Json/ })
     expect(link).toHaveAttribute('href', 'https://www.nuget.org/packages/Newtonsoft.Json')
     expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noreferrer')
   })
 })
