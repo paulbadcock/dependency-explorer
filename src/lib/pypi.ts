@@ -6,7 +6,7 @@ const PEP440_PRE_RE = /(a|b|rc)\d+$/
 
 export async function fetchPackageInfo(name: string, installedVersion: string): Promise<PyPIPackageInfo> {
   const cacheKey = `pypi:${name.toLowerCase()}@${installedVersion}`
-  const cached = pkgCacheGet<PyPIPackageInfo>(cacheKey)
+  const cached = await pkgCacheGet<PyPIPackageInfo>(cacheKey)
   if (cached) return cached
 
   const [latestData, versionData] = await Promise.all([
@@ -26,7 +26,7 @@ export async function fetchPackageInfo(name: string, installedVersion: string): 
     lastReleaseDate: releases.at(-1)?.uploadTime ?? new Date().toISOString(),
   }
 
-  pkgCacheSet(cacheKey, info, PKG_CACHE_TTL)
+  await pkgCacheSet(cacheKey, info, PKG_CACHE_TTL)
   return info
 }
 

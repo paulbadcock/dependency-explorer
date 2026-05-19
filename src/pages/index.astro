@@ -4,9 +4,9 @@ import { analysisListRecent } from '../lib/cache'
 
 let recent: Awaited<ReturnType<typeof analysisListRecent>> = []
 try {
-  recent = analysisListRecent(10)
+  recent = await analysisListRecent(10)
 } catch {
-  // database may not exist on first run
+  // database may not be initialised on first run
 }
 ---
 
@@ -14,15 +14,15 @@ try {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Python Dependency Explorer</title>
+    <title>Dependency Explorer</title>
   </head>
   <body class="min-h-screen bg-surface text-white p-8">
     <div class="max-w-2xl mx-auto">
 
       <header class="mb-10 text-center">
-        <h1 class="text-2xl font-bold font-mono mb-1">Python Dependency Explorer</h1>
+        <h1 class="text-2xl font-bold font-mono mb-1">Dependency Explorer</h1>
         <p class="text-muted text-sm">
-          Upload a <code>requirements.txt</code> or <code>pyproject.toml</code>
+          Upload a <code>requirements.txt</code>, <code>poetry.lock</code>, or <code>packages.lock.json</code>
         </p>
       </header>
 
@@ -32,18 +32,35 @@ try {
 
       {recent.length > 0 && (
         <section>
-          <h2 class="text-xs uppercase tracking-widest text-muted mb-3">Recent analyses</h2>
-          <div class="border border-border rounded-lg overflow-hidden">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs uppercase tracking-widest text-muted">Recent analyses</h2>
+            <a
+              id="compare-btn"
+              href="#"
+              class="hidden text-xs px-3 py-1 rounded border border-border text-muted hover:text-white hover:border-muted transition-colors"
+            >
+              Compare selected
+            </a>
+          </div>
+          <div id="recent-list" class="border border-border rounded-lg overflow-hidden">
             {recent.map((item, i) => (
-              <a
-                href={`/analysis/${item.id}`}
+              <div
+                data-analysis-id={item.id}
                 class:list={[
-                  'flex items-center justify-between px-4 py-3 hover:bg-panel transition-colors',
+                  'flex items-center gap-3 px-4 py-3 group',
                   i < recent.length - 1 ? 'border-b border-border' : '',
                 ]}
               >
-                <span class="font-mono text-sm">{item.filename}</span>
-                <div class="flex items-center gap-3 text-xs">
+                <input
+                  type="checkbox"
+                  data-compare-check={item.id}
+                  class="shrink-0 accent-white cursor-pointer"
+                />
+                <a href={`/analysis/${item.id}`} class="flex-1 min-w-0 hover:opacity-80 transition-opacity">
+                  <div class="font-mono text-sm truncate">{item.label ?? item.filename}</div>
+                  {item.label && <div class="text-muted text-xs truncate">{item.filename}</div>}
+                </a>
+                <div class="flex items-center gap-3 text-xs shrink-0">
                   {item.totalCves > 0 ? (
                     <span class="bg-red-badge text-red-text rounded px-2 py-0.5">
                       ● {item.totalCves} CVE
@@ -54,13 +71,56 @@ try {
                   <span class="text-muted">
                     {new Date(item.createdAt).toLocaleDateString()}
                   </span>
+                  <button
+                    data-delete-id={item.id}
+                    class="text-muted hover:text-red-text transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remove"
+                    aria-label="Remove analysis"
+                  >
+                    ×
+                  </button>
                 </div>
-              </a>
+              </div>
             ))}
           </div>
         </section>
       )}
 
     </div>
+
+    <script>
+      // Delete
+      document.querySelectorAll('[data-delete-id]').forEach(btn => {
+        btn.addEventListener('click', async e => {
+          e.preventDefault()
+          const id = (btn as HTMLElement).getAttribute('data-delete-id')!
+          await fetch(`/api/analysis/${id}`, { method: 'DELETE' })
+          const row = document.querySelector(`[data-analysis-id="${id}"]`)
+          if (row) {
+            row.remove()
+            const list = document.getElementById('recent-list')
+            if (list && list.children.length === 0) list.closest('section')?.remove()
+          }
+        })
+      })
+
+      // Compare
+      const compareBtn = document.getElementById('compare-btn') as HTMLAnchorElement | null
+      const checkboxes = document.querySelectorAll<HTMLInputElement>('[data-compare-check]')
+
+      function updateCompare() {
+        const checked = [...checkboxes].filter(cb => cb.checked)
+        if (!compareBtn) return
+        if (checked.length === 2) {
+          const [id1, id2] = checked.map(cb => cb.getAttribute('data-compare-check'))
+          compareBtn.href = `/compare/${id1}/${id2}`
+          compareBtn.classList.remove('hidden')
+        } else {
+          compareBtn.classList.add('hidden')
+        }
+      }
+
+      checkboxes.forEach(cb => cb.addEventListener('change', updateCompare))
+    </script>
   </body>
 </html>

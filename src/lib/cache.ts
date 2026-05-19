@@ -1,81 +1,116 @@
-import Database from 'better-sqlite3'
-import { mkdirSync } from 'fs'
-import { join } from 'path'
-import type { Analysis, RecentAnalysis } from './types'
+import type { Analysis, Package, PyPIRelease, RecentAnalysis } from './types'
 
-const DB_PATH = join(process.cwd(), 'data', 'cache.db')
+let _db: D1Database | null = null
+let _schemaApplied = false
 
-let _db: Database.Database | null = null
+export function initDb(db: D1Database): void {
+  _db = db
+}
 
-function getDb(): Database.Database {
-  if (_db) return _db
-  mkdirSync(join(process.cwd(), 'data'), { recursive: true })
-  _db = new Database(DB_PATH)
-  applySchema(_db)
+// Used in tests only — accepts a D1-compatible mock
+export function resetForTest(db: D1Database): void {
+  _db = db
+  _schemaApplied = false
+}
+
+function getDb(): D1Database {
+  if (!_db) throw new Error('Database not initialised. Ensure middleware has run.')
   return _db
 }
 
-function applySchema(db: Database.Database): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS pkg_cache (
-      key        TEXT PRIMARY KEY,
-      data       TEXT NOT NULL,
-      expires_at INTEGER NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS analyses (
-      id         TEXT PRIMARY KEY,
-      filename   TEXT NOT NULL,
-      data       TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-  `)
+const SCHEMA = `
+  CREATE TABLE IF NOT EXISTS pkg_cache (
+    key        TEXT PRIMARY KEY,
+    data       TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS analyses (
+    id         TEXT PRIMARY KEY,
+    filename   TEXT NOT NULL,
+    data       TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    content    TEXT
+  );
+`
+
+export async function ensureSchema(): Promise<void> {
+  if (_schemaApplied) return
+  const db = getDb()
+  for (const sql of SCHEMA.split(';').map(s => s.trim()).filter(Boolean)) {
+    await db.prepare(sql).run()
+  }
+  _schemaApplied = true
 }
 
-export function resetForTest(): void {
-  if (_db) { _db.close(); _db = null }
-  _db = new Database(':memory:')
-  applySchema(_db)
-}
-
-export function pkgCacheGet<T>(key: string): T | null {
-  const row = getDb()
+export async function pkgCacheGet<T>(key: string): Promise<T | null> {
+  const row = await getDb()
     .prepare('SELECT data, expires_at FROM pkg_cache WHERE key = ?')
-    .get(key) as { data: string; expires_at: number } | undefined
+    .bind(key)
+    .first<{ data: string; expires_at: number }>()
   if (!row || row.expires_at < Date.now()) return null
   return JSON.parse(row.data) as T
 }
 
-export function pkgCacheSet(key: string, data: unknown, ttlMs: number): void {
-  getDb()
+export async function pkgCacheSet(key: string, data: unknown, ttlMs: number): Promise<void> {
+  await getDb()
     .prepare('INSERT OR REPLACE INTO pkg_cache (key, data, expires_at) VALUES (?, ?, ?)')
-    .run(key, JSON.stringify(data), Date.now() + ttlMs)
+    .bind(key, JSON.stringify(data), Date.now() + ttlMs)
+    .run()
 }
 
-export function analysisSave(analysis: Analysis): void {
-  getDb()
+export async function analysisSave(analysis: Analysis): Promise<void> {
+  await getDb()
     .prepare('INSERT OR REPLACE INTO analyses (id, filename, data, created_at) VALUES (?, ?, ?, ?)')
-    .run(analysis.id, analysis.filename, JSON.stringify(analysis), Date.now())
+    .bind(analysis.id, analysis.filename, JSON.stringify(trimReleasesForStorage(analysis)), Date.now())
+    .run()
 }
 
-export function analysisGet(id: string): Analysis | null {
-  const row = getDb()
+function trimTopLevelReleases(pkg: Package): PyPIRelease[] {
+  const installedIdx = pkg.releases.findIndex(r => r.version === pkg.installedVersion)
+  const latestIdx = pkg.releases.findIndex(r => r.version === pkg.latestVersion)
+  if (installedIdx === -1 || latestIdx === -1 || installedIdx > latestIdx) return pkg.releases
+  return pkg.releases.slice(installedIdx, latestIdx + 1)
+}
+
+function trimReleasesForStorage(analysis: Analysis): Analysis {
+  return {
+    ...analysis,
+    packages: analysis.packages.map(pkg => ({
+      ...pkg,
+      releases: trimTopLevelReleases(pkg),
+      dependencies: pkg.dependencies.map(dep => ({
+        ...dep,
+        releases: dep.releases.filter(r => r.version === dep.installedVersion),
+      })),
+    })),
+  }
+}
+
+export async function analysisGet(id: string): Promise<Analysis | null> {
+  const row = await getDb()
     .prepare('SELECT data FROM analyses WHERE id = ?')
-    .get(id) as { data: string } | undefined
+    .bind(id)
+    .first<{ data: string }>()
   if (!row) return null
   return JSON.parse(row.data) as Analysis
 }
 
-export function analysisListRecent(limit = 10): RecentAnalysis[] {
-  const rows = getDb()
+export async function analysisListRecent(limit = 10): Promise<RecentAnalysis[]> {
+  const { results } = await getDb()
     .prepare('SELECT id, filename, created_at, data FROM analyses ORDER BY created_at DESC LIMIT ?')
-    .all(limit) as Array<{ id: string; filename: string; created_at: number; data: string }>
-  return rows.map(r => {
+    .bind(limit)
+    .all<{ id: string; filename: string; created_at: number; data: string }>()
+  return results.map(r => {
     const a = JSON.parse(r.data) as Analysis
     const totalCves = a.packages.reduce((sum, p) => sum + p.rollup.totalCves, 0)
-    return { id: r.id, filename: r.filename, createdAt: r.created_at, totalCves }
+    return { id: r.id, filename: r.filename, label: a.label, createdAt: r.created_at, totalCves }
   })
 }
 
-export function analysisDelete(id: string): number {
-  return getDb().prepare('DELETE FROM analyses WHERE id = ?').run(id).changes
+export async function analysisDelete(id: string): Promise<number> {
+  const result = await getDb()
+    .prepare('DELETE FROM analyses WHERE id = ?')
+    .bind(id)
+    .run()
+  return (result.meta as { changes?: number })?.changes ?? 0
 }

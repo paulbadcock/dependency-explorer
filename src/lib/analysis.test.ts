@@ -1,33 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { PipAuditDependency, PyPIPackageInfo } from './types'
+import type { PyPIPackageInfo } from './types'
 
-vi.mock('./pip-audit', () => ({
-  runPipAudit: vi.fn(),
-  PipAuditNotFoundError: class extends Error {},
+vi.mock('./pypi-resolve', () => ({
+  resolveRequirementsTxt: vi.fn().mockResolvedValue([
+    { name: 'requests', version: '2.28.0' },
+  ]),
+  resolveTransitiveDeps: vi.fn().mockResolvedValue([
+    { name: 'urllib3', version: '1.26.18' },
+    { name: 'certifi', version: '2023.1.1' },
+  ]),
+}))
+vi.mock('./osv', () => ({
+  queryOsvBatch: vi.fn().mockResolvedValue(new Map([
+    ['urllib3', [{ id: 'CVE-2023-45803', severity: 'high', description: 'urllib3 test vuln', fixedInVersion: '1.26.19' }]],
+  ])),
 }))
 vi.mock('./pypi', () => ({
   fetchPackageInfo: vi.fn(),
   computeStaleness: vi.fn(),
 }))
 vi.mock('./cache', () => ({
-  analysisGet: vi.fn().mockReturnValue(null),
-  analysisSave: vi.fn(),
-  resetForTest: vi.fn(),
+  analysisGet: vi.fn().mockResolvedValue(null),
+  analysisSave: vi.fn().mockResolvedValue(undefined),
 }))
 
-import { runPipAudit } from './pip-audit'
 import { fetchPackageInfo, computeStaleness } from './pypi'
 import { runAnalysis } from './analysis'
 
 const REQUIREMENTS = 'requests==2.28.0\n'
-
-const MOCK_PIP_DEPS: PipAuditDependency[] = [
-  { name: 'requests', version: '2.28.0', vulns: [] },
-  { name: 'urllib3', version: '1.26.18', vulns: [
-    { id: 'GHSA-v845', fix_versions: ['1.26.19'], aliases: ['CVE-2023-45803'], description: 'test vuln' },
-  ]},
-  { name: 'certifi', version: '2023.1.1', vulns: [] },
-]
 
 const MOCK_PYPI_INFO: PyPIPackageInfo = {
   latestVersion: '2.32.3',
@@ -41,7 +41,6 @@ const MOCK_PYPI_INFO: PyPIPackageInfo = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(runPipAudit).mockResolvedValue(MOCK_PIP_DEPS)
   vi.mocked(fetchPackageInfo).mockResolvedValue(MOCK_PYPI_INFO)
   vi.mocked(computeStaleness).mockReturnValue({
     patchesBehind: 1,
@@ -70,7 +69,7 @@ describe('runAnalysis', () => {
     expect(depNames).toContain('certifi')
   })
 
-  it('maps CVE aliases to CVE-* ids', async () => {
+  it('maps CVE ids from OSV to transitive deps', async () => {
     const analysis = await runAnalysis('requirements.txt', REQUIREMENTS)
     const urllib3 = analysis.packages[0]!.dependencies.find(d => d.name === 'urllib3')!
     expect(urllib3.cves[0]!.id).toBe('CVE-2023-45803')

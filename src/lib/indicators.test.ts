@@ -11,8 +11,9 @@ function makePackage(overrides: Partial<Package> = {}): Package {
     majorsBehind: 0,
     lastReleaseDate: new Date().toISOString(),
     cves: [],
+    releases: [],
     dependencies: [],
-    rollup: { totalCves: 0, maxPatchesBehind: 0, hasMajorBehind: false, hasEol: false },
+    rollup: { totalCves: 0, maxPatchesBehind: 0, hasMajorBehind: false, hasEol: false, maxEolYears: 0 },
     ...overrides,
   }
 }
@@ -81,6 +82,16 @@ describe('computeRollup', () => {
     old.setFullYear(old.getFullYear() - 3)
     const child = makePackage({ lastReleaseDate: old.toISOString() })
     expect(computeRollup(makePackage({ dependencies: [child] })).hasEol).toBe(true)
+  })
+
+  it('maxEolYears reflects the worst-case eol dep, not the parent', () => {
+    const old = new Date()
+    old.setFullYear(old.getFullYear() - 3)
+    const child = makePackage({ lastReleaseDate: old.toISOString() })
+    const parent = makePackage({ dependencies: [child] })
+    const rollup = computeRollup(parent)
+    expect(rollup.hasEol).toBe(true)
+    expect(rollup.maxEolYears).toBeGreaterThanOrEqual(3)
   })
 
   it('returns zero maxPatchesBehind for a package with no dependencies', () => {

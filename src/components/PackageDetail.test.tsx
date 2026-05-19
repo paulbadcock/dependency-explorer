@@ -15,7 +15,7 @@ const MOCK_PKG: Package = {
   ],
   releases: [],
   dependencies: [],
-  rollup: { totalCves: 1, maxPatchesBehind: 4, hasMajorBehind: false, hasEol: false },
+  rollup: { totalCves: 1, maxPatchesBehind: 4, hasMajorBehind: false, hasEol: false, maxEolYears: 0 },
 }
 
 const RELEASES = [

@@ -1,0 +1,218 @@
+---
+import { analysisGet } from '../../../lib/analysis'
+import { compareAnalyses } from '../../../lib/compare'
+import { getPackageStatus } from '../../../lib/indicators'
+import type { DiffStatus } from '../../../lib/compare'
+import type { PackageStatus } from '../../../lib/indicators'
+import type { Package } from '../../../lib/types'
+
+const { id1, id2 } = Astro.params
+const a = id1 ? await analysisGet(id1) : null
+const b = id2 ? await analysisGet(id2) : null
+if (!a || !b) return Astro.redirect('/', 302)
+
+const diffs = compareAnalyses(a, b)
+const labelA = a.label ?? a.filename
+const labelB = b.label ?? b.filename
+
+const statusRank: Record<PackageStatus, number> = {
+  critical: 3, eol: 2, warning: 1, healthy: 0,
+}
+
+function statusDot(pkg: Package | null): { dot: string; label: string; text: string } | null {
+  if (!pkg) return null
+  const s = getPackageStatus(pkg)
+  const map: Record<PackageStatus, { dot: string; label: string; text: string }> = {
+    critical: { dot: 'bg-red-text',    label: 'critical', text: 'text-red-text'    },
+    eol:      { dot: 'bg-muted',       label: 'eol',      text: 'text-muted'       },
+    warning:  { dot: 'bg-yellow-text', label: 'warning',  text: 'text-yellow-text' },
+    healthy:  { dot: 'bg-green-text',  label: 'healthy',  text: 'text-green-text'  },
+  }
+  return map[s]
+}
+
+function rowOutcome(diff: ReturnType<typeof compareAnalyses>[number]): 'better' | 'worse' | 'neutral' {
+  if (!diff.pkgA || !diff.pkgB) return 'neutral'
+  const ra = statusRank[getPackageStatus(diff.pkgA)]
+  const rb = statusRank[getPackageStatus(diff.pkgB)]
+  if (rb < ra) return 'better'
+  if (rb > ra) return 'worse'
+  return 'neutral'
+}
+
+const changed = diffs.filter(d => d.status !== 'unchanged')
+const unchanged = diffs.filter(d => d.status === 'unchanged')
+
+const betterCount = changed.filter(d => rowOutcome(d) === 'better').length
+const worseCount  = changed.filter(d => rowOutcome(d) === 'worse').length
+
+const CHANGE_ICON: Record<DiffStatus, string> = {
+  upgraded: '↑', downgraded: '↓', added: '+', removed: '−', unchanged: '=',
+}
+---
+
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Compare — {labelA} vs {labelB}</title>
+  </head>
+  <body class="min-h-screen bg-surface text-white flex flex-col text-sm" style="height:100vh">
+
+    <header class="flex items-center justify-between px-4 py-2 border-b border-border flex-shrink-0">
+      <a href={`/analysis/${id1}`} class="text-muted text-sm hover:text-white transition-colors">← Back</a>
+      <div class="text-center">
+        <span class="font-mono">{labelA}</span>
+        <span class="text-muted mx-2">vs</span>
+        <span class="font-mono">{labelB}</span>
+      </div>
+      <span />
+    </header>
+
+    <!-- Summary bar -->
+    <div class="flex items-center gap-4 px-6 py-2 border-b border-border text-xs flex-shrink-0 flex-wrap">
+      {betterCount > 0 && (
+        <span class="text-green-text font-medium">↑ {betterCount} improved in {labelB}</span>
+      )}
+      {worseCount > 0 && (
+        <span class="text-red-text font-medium">↓ {worseCount} regressed in {labelB}</span>
+      )}
+      {betterCount === 0 && worseCount === 0 && (
+        <span class="text-muted">No security status changes</span>
+      )}
+      <span class="text-border">·</span>
+      {diffs.filter(d => d.status === 'upgraded').length > 0 &&
+        <span class="text-muted">{diffs.filter(d => d.status === 'upgraded').length} upgraded</span>}
+      {diffs.filter(d => d.status === 'downgraded').length > 0 &&
+        <span class="text-yellow-text">{diffs.filter(d => d.status === 'downgraded').length} downgraded</span>}
+      {diffs.filter(d => d.status === 'added').length > 0 &&
+        <span class="text-muted">{diffs.filter(d => d.status === 'added').length} added</span>}
+      {diffs.filter(d => d.status === 'removed').length > 0 &&
+        <span class="text-muted">{diffs.filter(d => d.status === 'removed').length} removed</span>}
+      <span class="text-muted">{unchanged.length} unchanged</span>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-xs border-collapse">
+        <thead>
+          <tr class="border-b border-border text-muted uppercase tracking-widest text-left font-mono">
+            <th class="px-3 py-2 w-4"></th>
+            <th class="px-3 py-2">Package</th>
+            <th class="px-3 py-2">{labelA}</th>
+            <th class="px-3 py-2 w-6"></th>
+            <th class="px-3 py-2">{labelB}</th>
+            <th class="px-3 py-2 text-right">CVEs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {changed.map(diff => {
+            const sdA = statusDot(diff.pkgA)
+            const sdB = statusDot(diff.pkgB)
+            const outcome = rowOutcome(diff)
+            const cvesA = diff.pkgA?.rollup.totalCves ?? 0
+            const cvesB = diff.pkgB?.rollup.totalCves ?? 0
+            const cveDelta = cvesB - cvesA
+            const arrowColor = outcome === 'better' ? 'text-green-text' : outcome === 'worse' ? 'text-red-text' : 'text-muted'
+            return (
+              <tr class="border-b border-border hover:bg-panel transition-colors">
+                <!-- change type -->
+                <td class={`px-3 py-2 font-mono font-bold ${arrowColor}`}>
+                  {CHANGE_ICON[diff.status]}
+                </td>
+                <!-- package name -->
+                <td class="px-3 py-2 font-mono">{diff.name}</td>
+                <!-- A side -->
+                <td class="px-3 py-2">
+                  {diff.pkgA && sdA ? (
+                    <span class="flex items-center gap-1.5">
+                      <span class={`inline-block w-2 h-2 rounded-full shrink-0 ${sdA.dot}`} title={sdA.label} />
+                      <span class="font-mono">{diff.pkgA.installedVersion}</span>
+                      <span class={`text-xs ${sdA.text}`}>{sdA.label}</span>
+                    </span>
+                  ) : (
+                    <span class="text-muted">—</span>
+                  )}
+                </td>
+                <!-- direction arrow -->
+                <td class={`px-1 py-2 text-center ${arrowColor}`}>
+                  {diff.pkgA && diff.pkgB ? (outcome === 'better' ? '→✓' : outcome === 'worse' ? '→!' : '→') : ''}
+                </td>
+                <!-- B side -->
+                <td class="px-3 py-2">
+                  {diff.pkgB && sdB ? (
+                    <span class="flex items-center gap-1.5">
+                      <span class={`inline-block w-2 h-2 rounded-full shrink-0 ${sdB.dot}`} title={sdB.label} />
+                      <span class="font-mono">{diff.pkgB.installedVersion}</span>
+                      <span class={`text-xs ${sdB.text}`}>{sdB.label}</span>
+                    </span>
+                  ) : (
+                    <span class="text-muted">—</span>
+                  )}
+                </td>
+                <!-- CVE delta -->
+                <td class="px-3 py-2 text-right font-mono">
+                  {cvesA > 0 || cvesB > 0 ? (
+                    <span>
+                      <span class={cvesA > 0 ? 'text-red-text' : 'text-muted'}>{cvesA}</span>
+                      <span class="text-muted"> → </span>
+                      <span class={cvesB > 0 ? 'text-red-text' : 'text-green-text'}>{cvesB}</span>
+                    </span>
+                  ) : (
+                    <span class="text-muted">—</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+
+      {unchanged.length > 0 && (
+        <div class="px-3 py-3 border-t border-border">
+          <button id="toggle-unchanged" class="text-xs text-muted hover:text-white transition-colors">
+            ↓ show {unchanged.length} unchanged
+          </button>
+          <table id="unchanged-table" class="hidden w-full text-xs border-collapse mt-2">
+            <tbody>
+              {unchanged.map(diff => {
+                const sdA = statusDot(diff.pkgA)
+                const cvesA = diff.pkgA?.rollup.totalCves ?? 0
+                return (
+                  <tr class="border-b border-border text-muted hover:bg-panel transition-colors">
+                    <td class="px-3 py-2 w-4 font-mono">=</td>
+                    <td class="px-3 py-2 font-mono">{diff.name}</td>
+                    <td class="px-3 py-2">
+                      {sdA && (
+                        <span class="flex items-center gap-1.5">
+                          <span class={`inline-block w-2 h-2 rounded-full shrink-0 ${sdA.dot}`} />
+                          <span class="font-mono">{diff.pkgA?.installedVersion}</span>
+                          <span class={sdA.text}>{sdA.label}</span>
+                        </span>
+                      )}
+                    </td>
+                    <td class="px-1 py-2 text-center">→</td>
+                    <td class="px-3 py-2 font-mono text-muted">{diff.pkgB?.installedVersion}</td>
+                    <td class="px-3 py-2 text-right font-mono">
+                      {cvesA > 0 ? <span class="text-red-text">{cvesA}</span> : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+
+    <script>
+      const btn = document.getElementById('toggle-unchanged')
+      const table = document.getElementById('unchanged-table')
+      btn?.addEventListener('click', () => {
+        const nowHidden = table?.classList.toggle('hidden')
+        if (btn) btn.textContent = nowHidden
+          ? `↓ show ${table?.querySelectorAll('tr').length} unchanged`
+          : '↑ hide unchanged'
+      })
+    </script>
+  </body>
+</html>

@@ -12,8 +12,9 @@ function makePackage(name: string, overrides: Partial<Package> = {}): Package {
     majorsBehind: 0,
     lastReleaseDate: new Date().toISOString(),
     cves: [],
+    releases: [],
     dependencies: [],
-    rollup: { totalCves: 0, maxPatchesBehind: 0, hasMajorBehind: false, hasEol: false },
+    rollup: { totalCves: 0, maxPatchesBehind: 0, hasMajorBehind: false, hasEol: false, maxEolYears: 0 },
     ...overrides,
   }
 }

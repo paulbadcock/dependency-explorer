@@ -4,6 +4,7 @@ export type PackageStatus = 'critical' | 'eol' | 'warning' | 'healthy'
 
 const TWO_YEARS_MS = 2 * 365 * 24 * 60 * 60 * 1000
 const ONE_YEAR_MS  =     365 * 24 * 60 * 60 * 1000
+const YEAR_MS      =     365 * 24 * 60 * 60 * 1000
 
 export function getPackageStatus(pkg: Package): PackageStatus {
   if (pkg.cves.length > 0 || pkg.majorsBehind >= 1) return 'critical'
@@ -20,5 +21,9 @@ export function computeRollup(pkg: Package): Rollup {
     maxPatchesBehind: all.reduce((max, p) => Math.max(max, p.patchesBehind), 0),
     hasMajorBehind: all.some(p => p.majorsBehind >= 1),
     hasEol: all.some(p => getPackageStatus(p) === 'eol'),
+    maxEolYears: all.reduce((max, p) => {
+      if (getPackageStatus(p) !== 'eol') return max
+      return Math.max(max, Math.floor((Date.now() - new Date(p.lastReleaseDate).getTime()) / YEAR_MS))
+    }, 0),
   }
 }

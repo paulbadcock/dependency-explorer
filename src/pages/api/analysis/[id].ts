@@ -2,9 +2,9 @@ import type { APIRoute } from 'astro'
 import { analysisGet } from '../../../lib/analysis'
 import { analysisDelete } from '../../../lib/cache'
 
-export const GET: APIRoute = ({ params }) => {
+export const GET: APIRoute = async ({ params }) => {
   try {
-    const analysis = analysisGet(params.id!)
+    const analysis = await analysisGet(params.id!)
     if (!analysis) {
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,
@@ -23,9 +23,9 @@ export const GET: APIRoute = ({ params }) => {
   }
 }
 
-export const DELETE: APIRoute = ({ params }) => {
+export const DELETE: APIRoute = async ({ params }) => {
   try {
-    const changes = analysisDelete(params.id!)
+    const changes = await analysisDelete(params.id!)
     if (changes === 0) {
       return new Response(JSON.stringify({ error: 'Not found' }), {
         status: 404,

@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro'
 import { runAnalysis } from '../../lib/analysis'
-import { PipAuditNotFoundError } from '../../lib/pip-audit'
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   let formData: FormData
@@ -22,8 +21,11 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   const { name: filename } = file
-  if (!filename.endsWith('.txt') && !filename.endsWith('.toml')) {
-    return new Response(JSON.stringify({ error: 'Only .txt and .toml files are accepted' }), {
+  const labelRaw = formData.get('label')
+  const label = typeof labelRaw === 'string' ? labelRaw.trim() : ''
+
+  if (!filename.endsWith('.txt') && !filename.endsWith('.lock') && filename !== 'packages.lock.json') {
+    return new Response(JSON.stringify({ error: 'Only requirements.txt, poetry.lock, and packages.lock.json files are accepted' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     })
@@ -38,15 +40,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   try {
-    const analysis = await runAnalysis(filename, content)
+    const analysis = await runAnalysis(filename, content, label || undefined)
     return redirect(`/analysis/${analysis.id}`, 303)
   } catch (err) {
-    if (err instanceof PipAuditNotFoundError) {
-      return new Response(JSON.stringify({ error: err.message }), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }
     const message = err instanceof Error ? err.message : 'Analysis failed'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,

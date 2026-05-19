@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { StatusBadge } from './StatusBadge'
+import { Tooltip } from './Tooltip'
 import { getPackageStatus } from '../lib/indicators'
 import type { Package } from '../lib/types'
 
@@ -19,6 +20,13 @@ export function DependencyTree({ packages, selected, onSelect }: TreeProps) {
   )
 }
 
+function formatInstalledDate(pkg: Package): string {
+  const rel = pkg.releases.find(r => r.version === pkg.installedVersion)
+  if (!rel) return '—'
+  const d = new Date(rel.uploadTime)
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+}
+
 function TreeNode({
   pkg, selected, onSelect, depth,
 }: { pkg: Package; selected: Package | null; onSelect: (p: Package) => void; depth: number }) {
@@ -33,10 +41,6 @@ function TreeNode({
     warning: 'text-yellow-text',
     healthy: 'text-green-text',
   }[status]
-
-  const yearsSince = Math.floor(
-    (Date.now() - new Date(pkg.lastReleaseDate).getTime()) / (1000 * 60 * 60 * 24 * 365)
-  )
 
   function handleClick() {
     if (hasChildren) setExpanded(e => !e)
@@ -57,10 +61,10 @@ function TreeNode({
           <span aria-hidden="true">{hasChildren ? (expanded ? '▼' : '▶') : '↳'} </span>
           <span>{pkg.name}</span>
         </span>
-        <div className="flex gap-1 ml-auto mr-2 flex-shrink-0">
+        <div className="ml-auto flex items-center gap-1 flex-shrink-0">
           {pkg.rollup.totalCves > 0 && <StatusBadge type="cve" count={pkg.rollup.totalCves} />}
           {pkg.rollup.hasMajorBehind && <StatusBadge type="major" />}
-          {pkg.rollup.hasEol && <StatusBadge type="eol" years={yearsSince} />}
+          {pkg.rollup.hasEol && <StatusBadge type="eol" years={pkg.rollup.maxEolYears} />}
           {!pkg.rollup.hasMajorBehind && pkg.rollup.maxPatchesBehind > 0 && (
             <StatusBadge type="versions" count={pkg.rollup.maxPatchesBehind} />
           )}
@@ -68,6 +72,11 @@ function TreeNode({
             <StatusBadge type="healthy" />
           )}
         </div>
+        <Tooltip text={`Released ${formatInstalledDate(pkg)} — the date this version was published by its authors, not when you installed it.`}>
+          <span className="w-[46px] pr-2 text-right text-[10px] text-muted tabular-nums flex-shrink-0 inline-block">
+            {formatInstalledDate(pkg)}
+          </span>
+        </Tooltip>
       </div>
       {expanded && pkg.dependencies.map(dep => (
         <TreeNode key={dep.name} pkg={dep} selected={selected} onSelect={onSelect} depth={depth + 1} />

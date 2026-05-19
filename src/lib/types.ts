@@ -10,6 +10,7 @@ export interface Rollup {
   maxPatchesBehind: number
   hasMajorBehind: boolean
   hasEol: boolean
+  maxEolYears: number
 }
 
 export interface Package {
@@ -18,8 +19,9 @@ export interface Package {
   latestVersion: string
   patchesBehind: number
   majorsBehind: number
-  lastReleaseDate: string   // ISO string of the latest PyPI release
+  lastReleaseDate: string   // ISO string of the latest release
   cves: CVE[]
+  releases: PyPIRelease[]   // all stable releases, oldest → newest
   dependencies: Package[]   // one level deep (transitive)
   rollup: Rollup
 }
@@ -27,6 +29,7 @@ export interface Package {
 export interface Analysis {
   id: string
   filename: string
+  label?: string            // user-supplied note, used as display name
   createdAt: string         // ISO string
   packages: Package[]       // direct dependencies only at top level
 }
@@ -34,26 +37,9 @@ export interface Analysis {
 export interface RecentAnalysis {
   id: string
   filename: string
+  label?: string
   createdAt: number         // unix ms
   totalCves: number
-}
-
-// pip-audit --json output shapes
-export interface PipAuditVuln {
-  id: string
-  fix_versions: string[]
-  aliases: string[]
-  description: string
-}
-
-export interface PipAuditDependency {
-  name: string
-  version: string
-  vulns: PipAuditVuln[]
-}
-
-export interface PipAuditOutput {
-  dependencies: PipAuditDependency[]
 }
 
 // PyPI JSON API shapes
