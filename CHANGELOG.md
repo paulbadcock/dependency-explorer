@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-05-21
+
+### Fixed
+- README: added missing Registry links feature bullet (PyPI/NuGet links per package name)
+- README: expanded CVE scan bullet to mention clickable osv.dev and NVD deep links per CVE
+- README: corrected stack from Astro 5 to Astro 6
+
 ## [1.0.1] - 2026-05-21
 
 ### Security
