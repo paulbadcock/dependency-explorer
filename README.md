@@ -2,7 +2,7 @@
 
 I kept needing a fast way to audit Python and NuGet dependency files at work — something that would show CVEs, staleness, and upgrade gaps in one place without having to cross-reference three different tools. So I built one.
 
-![Dependency Explorer home page](screenshots/home.png)
+![Dependency Explorer feature tour](screenshots/tour-readme.gif)
 
 ## What it does
 
