@@ -32,6 +32,16 @@ Then open `http://localhost:4321` and upload a lockfile.
 
 For a production deploy, push to Cloudflare Pages and bind a D1 database named `DB`.
 
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org). Releases are tagged as `vMAJOR.MINOR.PATCH` and documented in [CHANGELOG.md](CHANGELOG.md).
+
+| Bump | When |
+|------|------|
+| **Patch** | Bug fixes, no behaviour change |
+| **Minor** | New features — new file formats, new columns, new UI options |
+| **Major** | Breaking changes — schema migrations, removed endpoints |
+
 ## Stack
 
 - **[Astro 5](https://astro.build)** (SSR) + **React 18** + **Tailwind 3**
