@@ -1,3 +1,4 @@
+// Requires: npm install --no-save playwright && npx playwright install chromium
 import { chromium } from 'playwright'
 import path from 'path'
 import { fileURLToPath } from 'url'
