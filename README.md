@@ -22,7 +22,7 @@ Drop in a `requirements.txt`, `poetry.lock`, or `packages.lock.json` and get bac
 
 ## Running it locally
 
-Requires Node.js and a Cloudflare account (for the D1 database).
+Requires Node.js.
 
 ```bash
 npm install
