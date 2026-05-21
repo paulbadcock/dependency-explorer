@@ -8,9 +8,10 @@ I kept needing a fast way to audit Python and NuGet dependency files at work —
 
 Drop in a `requirements.txt`, `poetry.lock`, or `packages.lock.json` and get back:
 
-- **CVE scan** — checks every package against [osv.dev](https://osv.dev), flags known vulnerabilities
+- **CVE scan** — checks every package against [osv.dev](https://osv.dev), flags known vulnerabilities; each CVE links directly to its osv.dev entry and NVD detail page
 - **Version staleness** — shows how far behind each package is (patch / minor / major)
 - **Status at a glance** — critical / EOL / warning / healthy classification per package
+- **Registry links** — every package name links to its PyPI or NuGet page
 - **Transitive deps** — one level of indirect dependencies surfaced per package
 - **Compare mode** — diff two analyses side-by-side to see what changed between lockfiles
 - **Cached results** — same file always returns instantly; no duplicate API calls
@@ -44,7 +45,7 @@ This project follows [Semantic Versioning](https://semver.org). Releases are tag
 
 ## Stack
 
-- **[Astro 5](https://astro.build)** (SSR) + **React 18** + **Tailwind 3**
+- **[Astro 6](https://astro.build)** (SSR) + **React 18** + **Tailwind 3**
 - **Cloudflare Pages** for hosting, **Cloudflare D1** (SQLite) for persistence
 - Analysis pipeline: PyPI + NuGet metadata APIs → [osv.dev](https://osv.dev) batch CVE lookup
 - Vitest for testing, with a `better-sqlite3` shim for D1 in Node
