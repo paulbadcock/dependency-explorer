@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-05-21
+
+### Security
+- Upgraded `vitest` from 2.1.9 to 4.1.7 to resolve [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) — esbuild ≤0.24.2 allowed any website to send requests to the dev server and read the response (dev-only, not a production risk)
+- Added `@testing-library/dom` as an explicit dev dependency (previously an implicit transitive dep)
+
 ## [1.0.0] - 2026-05-21
 
 Initial stable release, establishing the semver baseline.
