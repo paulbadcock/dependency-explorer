@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-05-27
+
+### Added
+- GitHub Actions CI workflow — runs `astro check`, `vitest`, and `astro build` on every push and pull request to `master`
+
+### Fixed
+- Replaced `@astrojs/tailwind` with a direct PostCSS integration; `@astrojs/tailwind` never declared Astro 6 compatibility, causing `npm ci` to fail with an ERESOLVE peer dependency conflict
+- Removed unused `cveDelta` variable in the compare page that produced a TypeScript hint
+
+### Changed
+- Upgraded `jsdom` 25 → 29, removing the `whatwg-encoding` deprecation warning
+- CI workflow now opts into Node.js 24 for GitHub Actions runners ahead of the June 2026 forced migration
+
 ## [1.0.2] - 2026-05-21
 
 ### Fixed
