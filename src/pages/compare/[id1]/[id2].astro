@@ -112,7 +112,6 @@ const CHANGE_ICON: Record<DiffStatus, string> = {
             const outcome = rowOutcome(diff)
             const cvesA = diff.pkgA?.rollup.totalCves ?? 0
             const cvesB = diff.pkgB?.rollup.totalCves ?? 0
-            const cveDelta = cvesB - cvesA
             const arrowColor = outcome === 'better' ? 'text-green-text' : outcome === 'worse' ? 'text-red-text' : 'text-muted'
             return (
               <tr class="border-b border-border hover:bg-panel transition-colors">
