@@ -43,6 +43,17 @@ This project follows [Semantic Versioning](https://semver.org). Releases are tag
 | **Minor** | New features — new file formats, new columns, new UI options |
 | **Major** | Breaking changes — schema migrations, removed endpoints |
 
+### Release checklist
+
+When cutting a release, always complete all of these steps in order:
+
+1. Update `CHANGELOG.md` — add a `## [x.y.z] - YYYY-MM-DD` section using Keep a Changelog format (Added / Fixed / Changed / Security)
+2. Bump `"version"` in `package.json`
+3. Commit: `chore: release vX.Y.Z`
+4. Tag: `git tag vX.Y.Z`
+5. Push branch and tag: `git push origin master && git push origin vX.Y.Z`
+6. Create GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."` — copy notes from CHANGELOG, append `**Full changelog:** <url>`
+
 ## Stack
 
 - **[Astro 6](https://astro.build)** (SSR) + **React 18** + **Tailwind 3**
