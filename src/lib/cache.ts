@@ -114,3 +114,26 @@ export async function analysisDelete(id: string): Promise<number> {
     .run()
   return (result.meta as { changes?: number })?.changes ?? 0
 }
+
+export async function analysisUpdateLabel(id: string, label: string): Promise<number> {
+  const db = getDb()
+  const row = await db
+    .prepare('SELECT data FROM analyses WHERE id = ?')
+    .bind(id)
+    .first<{ data: string }>()
+  if (!row) return 0
+
+  const analysis = JSON.parse(row.data) as Analysis
+  const trimmed = label.trim()
+  if (trimmed) {
+    analysis.label = trimmed
+  } else {
+    delete analysis.label
+  }
+
+  const result = await db
+    .prepare('UPDATE analyses SET data = ? WHERE id = ?')
+    .bind(JSON.stringify(analysis), id)
+    .run()
+  return (result.meta as { changes?: number })?.changes ?? 0
+}

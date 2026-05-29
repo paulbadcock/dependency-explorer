@@ -56,3 +56,38 @@ describe('analysisSave / analysisGet / analysisListRecent / analysisDelete', () 
     expect(await cache.analysisGet('abc123')).toBeNull()
   })
 })
+
+describe('analysisUpdateLabel', () => {
+  it('sets a label on an existing analysis', async () => {
+    await cache.analysisSave(mockAnalysis)
+    const changes = await cache.analysisUpdateLabel('abc123', 'My friendly name')
+    expect(changes).toBe(1)
+    const updated = await cache.analysisGet('abc123')
+    expect(updated?.label).toBe('My friendly name')
+  })
+
+  it('clears the label when given an empty string', async () => {
+    await cache.analysisSave({ ...mockAnalysis, label: 'Existing label' })
+    await cache.analysisUpdateLabel('abc123', '')
+    const updated = await cache.analysisGet('abc123')
+    expect(updated?.label).toBeUndefined()
+  })
+
+  it('trims whitespace from the label', async () => {
+    await cache.analysisSave(mockAnalysis)
+    await cache.analysisUpdateLabel('abc123', '  spaced  ')
+    expect((await cache.analysisGet('abc123'))?.label).toBe('spaced')
+  })
+
+  it('returns 0 changes when the id does not exist', async () => {
+    const changes = await cache.analysisUpdateLabel('missing', 'nope')
+    expect(changes).toBe(0)
+  })
+
+  it('reflects the new label in analysisListRecent', async () => {
+    await cache.analysisSave(mockAnalysis)
+    await cache.analysisUpdateLabel('abc123', 'Renamed')
+    const recent = await cache.analysisListRecent()
+    expect(recent[0]!.label).toBe('Renamed')
+  })
+})

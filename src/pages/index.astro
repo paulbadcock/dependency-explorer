@@ -47,6 +47,7 @@ try {
             {recent.map((item, i) => (
               <div
                 data-analysis-id={item.id}
+                data-filename={item.filename}
                 class:list={[
                   'flex items-center gap-3 px-4 py-3 group',
                   i < recent.length - 1 ? 'border-b border-border' : '',
@@ -57,11 +58,31 @@ try {
                   data-compare-check={item.id}
                   class="shrink-0 accent-white cursor-pointer"
                 />
-                <a href={`/analysis/${item.id}`} class="flex-1 min-w-0 hover:opacity-80 transition-opacity">
-                  <div class="font-mono text-sm truncate">{item.label ?? item.filename}</div>
-                  {item.label && <div class="text-muted text-xs truncate">{item.filename}</div>}
+                <a
+                  data-view-link
+                  href={`/analysis/${item.id}`}
+                  class="flex-1 min-w-0 hover:opacity-80 transition-opacity"
+                >
+                  <div data-label-text class="font-mono text-sm truncate">
+                    {item.label ?? item.filename}
+                  </div>
+                  <div
+                    data-filename-sub
+                    class:list={['text-muted text-xs truncate', item.label ? '' : 'hidden']}
+                  >
+                    {item.filename}
+                  </div>
                 </a>
-                <div class="flex items-center gap-3 text-xs shrink-0">
+                <input
+                  data-label-input
+                  type="text"
+                  maxlength="200"
+                  value={item.label ?? ''}
+                  placeholder={item.filename}
+                  aria-label="Rename analysis"
+                  class="hidden flex-1 min-w-0 bg-transparent border border-border rounded px-2 py-1 font-mono text-sm text-white placeholder:text-muted focus:outline-none focus:border-muted"
+                />
+                <div data-view-controls class="flex items-center gap-3 text-xs shrink-0">
                   {item.totalCves > 0 ? (
                     <span class="bg-red-badge text-red-text rounded px-2 py-0.5">
                       ● {item.totalCves} CVE
@@ -73,10 +94,36 @@ try {
                     {new Date(item.createdAt).toLocaleDateString()}
                   </span>
                   <button
+                    data-rename-id={item.id}
+                    class="text-muted hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                    title="Rename"
+                    aria-label="Rename analysis"
+                  >
+                    ✎
+                  </button>
+                  <button
                     data-delete-id={item.id}
                     class="text-muted hover:text-red-text transition-colors opacity-0 group-hover:opacity-100"
                     title="Remove"
                     aria-label="Remove analysis"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div data-edit-controls class="hidden items-center gap-2 text-base shrink-0">
+                  <button
+                    data-save-id={item.id}
+                    class="text-muted hover:text-green-text transition-colors"
+                    title="Save"
+                    aria-label="Save name"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    data-cancel-id={item.id}
+                    class="text-muted hover:text-red-text transition-colors"
+                    title="Cancel"
+                    aria-label="Cancel rename"
                   >
                     ×
                   </button>
@@ -101,6 +148,142 @@ try {
             row.remove()
             const list = document.getElementById('recent-list')
             if (list && list.children.length === 0) list.closest('section')?.remove()
+          }
+        })
+      })
+
+      // Rename — inline edit of an analysis label
+      function rowFor(id: string): HTMLElement | null {
+        return document.querySelector<HTMLElement>(`[data-analysis-id="${id}"]`)
+      }
+
+      function enterEdit(row: HTMLElement): void {
+        // Only one row may edit at a time — close any other open editor.
+        document.querySelectorAll<HTMLElement>('[data-analysis-id]').forEach(other => {
+          if (other !== row && !other.querySelector<HTMLElement>('[data-label-input]')!.classList.contains('hidden')) {
+            exitEdit(other)
+          }
+        })
+
+        const link = row.querySelector<HTMLElement>('[data-view-link]')!
+        const input = row.querySelector<HTMLInputElement>('[data-label-input]')!
+        const viewControls = row.querySelector<HTMLElement>('[data-view-controls]')!
+        const editControls = row.querySelector<HTMLElement>('[data-edit-controls]')!
+
+        link.classList.add('hidden')
+        viewControls.classList.add('hidden')
+        viewControls.classList.remove('flex')
+        input.classList.remove('hidden')
+        editControls.classList.remove('hidden')
+        editControls.classList.add('flex')
+
+        input.focus()
+        input.select()
+      }
+
+      function exitEdit(row: HTMLElement): void {
+        const link = row.querySelector<HTMLElement>('[data-view-link]')!
+        const input = row.querySelector<HTMLInputElement>('[data-label-input]')!
+        const viewControls = row.querySelector<HTMLElement>('[data-view-controls]')!
+        const editControls = row.querySelector<HTMLElement>('[data-edit-controls]')!
+
+        link.classList.remove('hidden')
+        viewControls.classList.remove('hidden')
+        viewControls.classList.add('flex')
+        input.classList.add('hidden')
+        editControls.classList.add('hidden')
+        editControls.classList.remove('flex')
+      }
+
+      function applyLabelToDom(row: HTMLElement, label: string | null): void {
+        const filename = row.getAttribute('data-filename') ?? ''
+        const labelText = row.querySelector<HTMLElement>('[data-label-text]')!
+        const filenameSub = row.querySelector<HTMLElement>('[data-filename-sub]')!
+        const input = row.querySelector<HTMLInputElement>('[data-label-input]')!
+
+        labelText.textContent = label ?? filename
+        if (label) {
+          filenameSub.classList.remove('hidden')
+        } else {
+          filenameSub.classList.add('hidden')
+        }
+        input.value = label ?? ''
+      }
+
+      async function saveLabel(row: HTMLElement): Promise<void> {
+        const id = row.getAttribute('data-analysis-id')!
+        const input = row.querySelector<HTMLInputElement>('[data-label-input]')!
+        const value = input.value
+        const trimmed = value.trim()
+
+        // Snapshot original label so we can roll back on failure.
+        const originalLabelText = row.querySelector<HTMLElement>('[data-label-text]')!.textContent
+        const filename = row.getAttribute('data-filename') ?? ''
+        const originalLabel = originalLabelText === filename ? null : originalLabelText
+
+        applyLabelToDom(row, trimmed || null)
+        exitEdit(row)
+
+        try {
+          const res = await fetch(`/api/analysis/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ label: value }),
+          })
+          if (!res.ok) throw new Error(`PATCH failed with ${res.status}`)
+        } catch (err) {
+          // Roll back the optimistic update.
+          applyLabelToDom(row, originalLabel)
+          console.error('Failed to rename analysis', err)
+        }
+      }
+
+      function cancelEdit(row: HTMLElement): void {
+        const input = row.querySelector<HTMLInputElement>('[data-label-input]')!
+        const labelText = row.querySelector<HTMLElement>('[data-label-text]')!.textContent
+        const filename = row.getAttribute('data-filename') ?? ''
+        // Restore input to the currently-persisted label (empty if unlabelled).
+        input.value = labelText === filename ? '' : labelText ?? ''
+        exitEdit(row)
+      }
+
+      document.querySelectorAll<HTMLElement>('[data-rename-id]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault()
+          const id = btn.getAttribute('data-rename-id')!
+          const row = rowFor(id)
+          if (row) enterEdit(row)
+        })
+      })
+
+      document.querySelectorAll<HTMLElement>('[data-save-id]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault()
+          const id = btn.getAttribute('data-save-id')!
+          const row = rowFor(id)
+          if (row) saveLabel(row)
+        })
+      })
+
+      document.querySelectorAll<HTMLElement>('[data-cancel-id]').forEach(btn => {
+        btn.addEventListener('click', e => {
+          e.preventDefault()
+          const id = btn.getAttribute('data-cancel-id')!
+          const row = rowFor(id)
+          if (row) cancelEdit(row)
+        })
+      })
+
+      document.querySelectorAll<HTMLInputElement>('[data-label-input]').forEach(input => {
+        input.addEventListener('keydown', e => {
+          const row = input.closest<HTMLElement>('[data-analysis-id]')
+          if (!row) return
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            saveLabel(row)
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            cancelEdit(row)
           }
         })
       })

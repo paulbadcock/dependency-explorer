@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-05-28
+
+### Added
+- Inline rename for saved analyses — click the pencil icon on a row in the Recent analyses list to give the run a friendly name. The label is persisted via a new `PATCH /api/analysis/:id` endpoint, survives reloads, and is shown as the row's primary title with the original filename kept as a sub-line. Submitting an empty value clears the label and the row falls back to the filename.
+
 ## [1.0.5] - 2026-05-27
 
 ### Changed
